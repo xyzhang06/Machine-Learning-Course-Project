@@ -1,0 +1,81 @@
+---
+title: 'Machine Learning Course Project'
+output: html_document
+keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1. Data Description and Project Objective
+The data used for this project was from the Weight Lifting Exercises Dataset. This human activity recognition research has traditionally focused on discriminating between different activities. Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+
+The training data for this project are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The goal of this project is to predict the manner in which they did the exercise. This is the "classe" variable in the data set.
+
+## 2. Load and Clean Data
+The first 7 columns in the data set are not useful for model fitting, so they are excluded. Also, lots of columns are statistical summary variables (i.e. min, max, std dev, avg, var, kurtosis, skewness) and contain many missing values, thus they are removed as well. See the code below for the complete list of columns that are excluded from the analysis.
+
+```{r}
+training <- read.csv("./training.csv", header = TRUE)
+testing <- read.csv("./testing.csv", header = TRUE)
+
+training.new <- training[, -which(grepl('user_name|X|timestamp|window|kurtosis_|skewness_|max_|min_|
+                                        amplitude_|avg_|var_|stddev_|amplitude', names(training)))]
+
+testing.new <- testing[, -which(grepl('user_name|X|timestamp|window|kurtosis_|skewness_|max_|min_|
+                                      amplitude_|avg_|var_|stddev_|amplitude', names(testing)))]
+```
+
+## 3. Model Fitting and Selection
+The 60% of testing data are randomly selected for model fitting and the remaining testing data are used for cross validation.
+
+```{r echo = TRUE, message = FALSE, warning = FALSE}
+library(caret)
+library(gbm)
+library(AppliedPredictiveModeling)
+library(randomForest)
+library(rattle)
+
+set.seed(1001)
+intrain <- createDataPartition(training.new$classe, p = 0.6, list = FALSE)
+train.sub <- training.new[intrain,]
+test.sub<- training.new[-intrain,]
+```
+
+Since "classe"" is a factor varaible, the methods of decision tree and random forest are considered for model fitting. The model with more accuracy based on the cross validation will be chosen as a final model to predict for the test data. 
+
+```{r}
+# Model fitting
+modfit.rpart <- train(classe ~., data = train.sub, method = "rpart")
+fancyRpartPlot(modfit.rpart$finalModel)
+
+pred.rpart <- predict(modfit.rpart, test.sub)
+confusionMatrix(pred.rpart, test.sub$classe)
+```
+The accuracy with decision tree based on cross validation is 49.2% only, which is very low. Thus, it would not provide good prediction for the test data. Next, random forest is used for model fitting.
+
+```{r}
+modfit.rf <- randomForest(classe ~., data = train.sub)
+pred.rf <- predict(modfit.rf, test.sub)
+confusionMatrix(pred.rf, test.sub$classe)
+
+plot(modfit.rf, main = "Model Error of Random Forest")
+
+```
+
+The random forest gives the accuracy of 99.4%. With this, the expected out of sample error would be small. Thus, the random forest is used as final model to predict for the test data.
+
+## 4. Predict for the Final Test Data
+```{r}
+pred.test <- predict(modfit.rf, testing.new)
+print(pred.test)
+```
+
+The result above displays the predictions for the test data based on the model of random forest.
